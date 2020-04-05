@@ -96,6 +96,8 @@ class TwoNodeTest extends ClusterTestBase {
         assertTimeoutPreemptively(TIMEOUT, () -> {
 
             stop(0, storage0);
+            //Try
+            //assertEquals(504, get(1, randomId(), 1, 1).getStatus());
             assertEquals(504, get(1, randomId(), 2, 2).getStatus());
             assertEquals(504, upsert(1, randomId(), randomValue(), 2, 2).getStatus());
             assertEquals(504, delete(1, randomId(), 2, 2).getStatus());
@@ -165,9 +167,13 @@ class TwoNodeTest extends ClusterTestBase {
 
             // Stop node 1
             stop(1, storage1);
+            Response res = upsert(0, key, value, 1, 2);
+            //upsert(0, key, value, 1, 2);
+            //Response res = upsert(0, "defkey", "defdata".getBytes(), 1, 2);
+            int stat = res.getStatus();
 
             // Insert
-            assertEquals(201, upsert(0, key, value, 1, 2).getStatus());
+            assertEquals(201, stat);
 
             // Start node 1
             storage1 = KVServiceFactory.create(port1, dao1, endpoints);

@@ -17,6 +17,7 @@
 package ru.mail.polis;
 
 import org.jetbrains.annotations.NotNull;
+import service.DaoService;
 
 import java.io.File;
 import java.io.IOException;
@@ -42,6 +43,7 @@ final class KVDaoFactory {
     @NotNull
     static KVDao create(@NotNull final File data) throws IOException {
         if (Runtime.getRuntime().maxMemory() > MAX_HEAP) {
+            System.out.print(Runtime.getRuntime().maxMemory());
             throw new IllegalStateException("The heap is too big. Consider setting Xmx.");
         }
 
@@ -53,7 +55,6 @@ final class KVDaoFactory {
             throw new IllegalArgumentException("Path is not a directory: " + data);
         }
 
-        // TODO: Implement me
-        throw new UnsupportedOperationException("Implement me!");
+        return new DaoService(data);
     }
 }

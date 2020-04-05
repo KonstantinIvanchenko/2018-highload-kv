@@ -56,6 +56,7 @@ class SingleNodeTest extends TestBase {
         storage.start();
         Thread.sleep(TimeUnit.SECONDS.toMillis(1));
         reset();
+        //System.out.println("DEBUG");
     }
 
     @AfterAll

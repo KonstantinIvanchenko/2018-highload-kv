@@ -22,6 +22,7 @@ import one.nio.http.Response;
 import one.nio.net.ConnectionString;
 import org.jetbrains.annotations.NotNull;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -33,7 +34,7 @@ import java.util.concurrent.TimeUnit;
  * @author Vadim Tsesko <incubos@yandex.com>
  */
 abstract class ClusterTestBase extends TestBase {
-    private static final long TIMEOUT = TimeUnit.SECONDS.toMillis(1);
+    private static final long TIMEOUT = Duration.ofSeconds(60).toMillis();//TimeUnit.SECONDS.toMillis(1);
     private final Map<String, HttpClient> hostToClient = new HashMap<>();
     Set<String> endpoints;
 

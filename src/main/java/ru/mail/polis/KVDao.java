@@ -19,6 +19,7 @@ package ru.mail.polis;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.Closeable;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.NoSuchElementException;
 
@@ -29,11 +30,11 @@ import java.util.NoSuchElementException;
  */
 public interface KVDao extends Closeable {
     @NotNull
-    byte[] get(@NotNull byte[] key) throws NoSuchElementException, IOException;
+    byte[] get(@NotNull byte[] key) throws IOException, NoSuchElementException;
 
     void upsert(
             @NotNull byte[] key,
-            @NotNull byte[] value) throws IOException;
+            @NotNull byte[] value) throws IOException; //IllegalArgumentException
 
-    void remove(@NotNull byte[] key) throws IOException;
+    void remove(@NotNull byte[] key) throws IOException; //IllegalArgumentException
 }
