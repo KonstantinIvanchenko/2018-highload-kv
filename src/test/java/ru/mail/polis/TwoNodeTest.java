@@ -142,8 +142,22 @@ class TwoNodeTest extends ClusterTestBase {
             final String key = randomId();
             final byte[] value = randomValue();
 
+            //byte[] value = "temp_key".getBytes();
+
             // Insert
             assertEquals(201, upsert(0, key, value, 2, 2).getStatus());
+
+            /*TEST*/
+            Response response1 = get(0, key, 1, 1);
+            assertEquals(200, response1.getStatus());
+            assertArrayEquals(value, response1.getBody());
+
+            Response response2 = get(1, key, 1, 1);
+            assertEquals(200, response2.getStatus());
+            assertArrayEquals(value, response2.getBody());
+
+
+            /*~TEST*/
 
             // Check
             Response response = get(1, key, 1, 2);
@@ -192,6 +206,7 @@ class TwoNodeTest extends ClusterTestBase {
             final String key = randomId();
             final byte[] value = randomValue();
 
+            //assertEquals(201, upsert(0, key, value, 1, 1).getStatus());
             // Insert
             assertEquals(201, upsert(0, key, value, 2, 2).getStatus());
 

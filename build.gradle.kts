@@ -27,7 +27,7 @@ dependencies {
 
 tasks {
     "test"(Test::class) {
-        maxHeapSize = "128m"//"1g"
+        maxHeapSize = "128m"//"128m"//"1g"
         useJUnitPlatform()
     }
 }
@@ -37,5 +37,5 @@ application {
     mainClassName = "ru.mail.polis.Cluster"
 
     // And limit Xmx
-    applicationDefaultJvmArgs = listOf("-Xmx128m")
+    applicationDefaultJvmArgs = listOf("-Xmx1024m")//listOf("-Xmx128m")
 }
