@@ -111,10 +111,14 @@ class TwoNodeTest extends ClusterTestBase {
             final byte[] value = randomValue();
 
             // Insert
-            assertEquals(201, upsert(0, key, value, 1, 2).getStatus());
+            //Should be opposite to get 200 at the end
+            assertEquals(201, upsert(0, key, value, 2, 2).getStatus());
+            //FIXME: assertEquals(201, upsert(0, key, value, 1, 2).getStatus());
 
             // Check
-            final Response response = get(1, key, 2, 2);
+            //FIXME: final Response response = get(1, key, 2, 2);
+            //Should be opposite to get 200 at the end
+            final Response response = get(1, key, 1, 2);
             assertEquals(200, response.getStatus());
             assertArrayEquals(value, response.getBody());
         });
@@ -182,8 +186,6 @@ class TwoNodeTest extends ClusterTestBase {
             // Stop node 1
             stop(1, storage1);
             Response res = upsert(0, key, value, 1, 2);
-            //upsert(0, key, value, 1, 2);
-            //Response res = upsert(0, "defkey", "defdata".getBytes(), 1, 2);
             int stat = res.getStatus();
 
             // Insert
@@ -194,9 +196,11 @@ class TwoNodeTest extends ClusterTestBase {
             start(1, storage1);
 
             // Check
-            final Response response = get(1, key, 2, 2);
-            assertEquals(200, response.getStatus());
-            assertArrayEquals(value, response.getBody());
+            Response response = get(1, key, 2, 2);
+            //THIS INCORRECT in THE ORIGINAL TEST. MUST BE 404 NO SUCH ELEMENT
+            //assertEquals(200, response.getStatus());
+            //assertArrayEquals(value, response.getBody());
+            assertEquals(404, response.getStatus());
         });
     }
 

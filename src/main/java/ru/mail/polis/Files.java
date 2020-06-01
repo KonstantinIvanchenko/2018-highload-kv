@@ -22,6 +22,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 
@@ -32,13 +33,15 @@ import java.nio.file.attribute.BasicFileAttributes;
  */
 final class Files {
     private static final String TEMP_PREFIX = "highload-kv";
+    private static final String TEMP_PREFIX_MEDIA = "/media/konstiva/My Book/temp";
 
     private Files() {
         // Don't instantiate
     }
 
     static File createTempDirectory() throws IOException {
-        final File data = java.nio.file.Files.createTempDirectory(TEMP_PREFIX).toFile();
+        //final File data = java.nio.file.Files.createTempDirectory(TEMP_PREFIX).toFile();
+        final File data = java.nio.file.Files.createTempDirectory(Paths.get(TEMP_PREFIX_MEDIA), TEMP_PREFIX).toFile();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
                 if (data.exists()) {

@@ -48,8 +48,19 @@ public class DaoService implements KVDao {
 
     @Override
     public void remove(@NotNull byte[] key) throws IOException {
-        final File file = new File(dir, new String(key));
-        file.delete();
+
+        String keyString = new String(key);
+
+        if (keyString.contains("*")){
+            String keyAllFiles = keyString.substring(0, keyString.indexOf("*"));
+
+            for(File f : this.dir.listFiles())
+                if (f.getName().startsWith(keyAllFiles))
+                    f.delete();
+        }else{
+            final File file = new File(dir, keyString);
+            file.delete();
+        }
     }
 
     @Override

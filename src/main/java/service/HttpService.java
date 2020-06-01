@@ -18,6 +18,8 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
@@ -47,11 +49,18 @@ public class HttpService implements KVService {
 
     protected final static String regStrReplicas = "id=([a-z0-9]+)&replicas=(\\d)/(\\d)";//"id=(a-z0-9)&replicas=(\\d)/(\\d)";
     protected final static String regStrId = "id=([a-z0-9]+)";
+    protected final static String regStrIdAllKeys = "id=AllList0&replicas=(\\d)/(\\d)";
+    protected final static String idStrAllKeys = "id=AllList0";
     protected final static String idStr = "id=";
-    protected final static String replicasStr = "replicas=";
 
     protected final static int NumberOfAcks  = 1;
     protected final static int NumberOfReplicas  = 1;
+
+    protected final static int ClientEachTimeout = 3000; //msec
+    protected final static int ClientAllTimeout = 5000; //msec
+    protected final static int ClientRequestDelay = 20; //msec
+
+    protected final static boolean InsertClientRequestDelay = true;
 
     @NotNull
     protected QueryArgs checkRequest(@NotNull final String query){
@@ -65,11 +74,28 @@ public class HttpService implements KVService {
         Pattern patternId = Pattern.compile(regStrId);
         Matcher matchId = patternId.matcher(query);
 
+        Pattern patternKeyList = Pattern.compile(regStrIdAllKeys);
+        Matcher matchKeyList = patternKeyList.matcher(query);
+
+        Pattern patternIdAll = Pattern.compile(idStrAllKeys);
+        Matcher matchIdAll = patternIdAll.matcher(query);
+
         if(matchReplicas.matches()) {
             // f = matchReplicas.group(0);
             return new QueryArgs(matchReplicas.group(1),
                                 Integer.parseInt(matchReplicas.group(2)),
                                 Integer.parseInt(matchReplicas.group(3)));
+        }
+
+        if(matchKeyList.matches()) {
+            // f = matchReplicas.group(0);
+            return new QueryArgs(matchKeyList.group(1),
+                    Integer.parseInt(matchKeyList.group(2)),
+                    Integer.parseInt(matchKeyList.group(3)));
+        }
+
+        if(matchIdAll.matches()) {
+            return new QueryArgs(matchIdAll.group(1), NumberOfAcks ,NumberOfReplicas);
         }
 
         if(matchId.matches()) {
@@ -183,6 +209,19 @@ public class HttpService implements KVService {
                     }
                 );
 
+        //TODO: implement key mgmt
+        this.httpserver.createContext(
+                "/v0/entitykey",
+                new ErrorHandler(http_hl -> {
+                    QueryArgs QueryArguments = checkRequest(http_hl.getRequestURI().getQuery());
+                    //Todo check query argument
+
+                    //Todo implement get to other replicas here
+
+
+                })
+        );
+
         this.httpserver.createContext(
                 "/v0/entity", //?id=
                 new ErrorHandler(http_hl -> {
@@ -199,7 +238,6 @@ public class HttpService implements KVService {
 
                         if (QueryArguments.acks == 0)
                             throw new IllegalArgumentException("Exc: Requested amount ACK nodes is 0");
-
 
                         if (QueryArguments.replicas == 1){
                             switch(http_hl.getRequestMethod()) {
@@ -263,9 +301,10 @@ public class HttpService implements KVService {
                                         getValue = dao.get(QueryArguments.id.getBytes());
                                         //isCurrentNodeOk = true;
                                         ReplicasAckCnt.getAndIncrement();
-                                        String temp_Value = Base64.getEncoder().encodeToString(getValue);
+                                        String ValueBase64 = Base64.getEncoder().encodeToString(getValue);
+                                        //String ValueString = new String(getValue);
                                         //Put the value from current
-                                        ObjectHist.put(temp_Value, 1);
+                                        ObjectHist.put(ValueBase64, 1);
                                     } catch (NoSuchElementException e) {
                                         //isCurrentNodeOk = true; //We consider this node also OK in case of 404 Element Deleted
                                         noSuchElementCount.getAndIncrement();
@@ -273,6 +312,14 @@ public class HttpService implements KVService {
                                         //isCurrentNodeOk = false;
                                         ReplicasNAckCnt.getAndIncrement();
                                     }
+
+                                    //HttpClient clientGet = HttpClient.newBuilder().build();
+
+                                    ExecutorService ClientExecutor = Executors.newFixedThreadPool(6);
+
+                                    HttpClient clientGet = HttpClient.newBuilder().
+                                            executor(ClientExecutor).
+                                            build();
 
                                     for (int i = 1; i < QueryArguments.replicas; i++) {
                                         //Get ports: always next n replica nodes from the original topology set
@@ -284,24 +331,35 @@ public class HttpService implements KVService {
                                             continue;
                                         }
 
-                                        HttpClient clientGet = HttpClient.newBuilder().build();//HttpClient.newHttpClient();
+                                        /*
+                                        HttpClient clientGet = HttpClient.newBuilder().
+                                                executor(ClientExecutor).
+                                                build();
+                                        */
 
                                         HttpRequest request = HttpRequest.newBuilder().
                                                 uri(NextURI).
                                                 GET().
                                                 build();
 
-                                        clientGet.sendAsync(request, HttpResponse.BodyHandlers.ofString()).
-                                                orTimeout(1, TimeUnit.SECONDS).
+
+                                        clientGet.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray()).
+                                                orTimeout(ClientEachTimeout, TimeUnit.MILLISECONDS).
                                                 whenComplete((response, error) -> {
                                                             if (error == null) {
                                                                 if (response.statusCode() == 200) {
-                                                                    ReplicasAckCnt.getAndIncrement();
-                                                                    String ResponseBody = response.body();
+                                                                    //String ResponseBody = response.body();
+                                                                    byte[] RespBytes = response.body();
+                                                                    String ResponseBody = Base64.getEncoder().encodeToString(RespBytes);
+
+                                                                    //String EncResponseBody = Base64.getEncoder().encodeToString(temp);
+
                                                                     if (!ObjectHist.containsKey(ResponseBody))
                                                                         ObjectHist.put(ResponseBody, 1);
                                                                     else
                                                                         ObjectHist.put(ResponseBody, ObjectHist.get(ResponseBody) + 1);
+
+                                                                    ReplicasAckCnt.getAndIncrement();
                                                                 } else if (response.statusCode() == 404)
                                                                     noSuchElementCount.getAndIncrement();
                                                                 else
@@ -310,6 +368,17 @@ public class HttpService implements KVService {
                                                                 ReplicasNAckCnt.getAndIncrement();
                                                         }
                                                 );
+
+                                        //long startTransmitTimeout = System.currentTimeMillis();
+                                        //while ((System.currentTimeMillis() - startTransmitTimeout) < 50);
+                                    }
+
+                                    //TODO: insert here a delay of at least 10-20 ms if http request are executed
+                                    // in the same thread.
+                                    if (InsertClientRequestDelay) {
+                                        long startTransmitTimeout = System.currentTimeMillis();
+                                        while ((System.currentTimeMillis() - startTransmitTimeout)
+                                                < ClientRequestDelay) ;
                                     }
 
                                     long startTimeGet = System.currentTimeMillis();
@@ -321,7 +390,7 @@ public class HttpService implements KVService {
                                             &&
                                             ReplicasAckCnt.get() + noSuchElementCount.get() < QueryArguments.acks
                                             &&
-                                            (System.currentTimeMillis() - startTimeGet) < 1000) ;//1sec
+                                            (System.currentTimeMillis() - startTimeGet) < ClientAllTimeout) ;//10sec
 
                                     // Plausibility check for the equality of the collected data
                                     int MaxSameReplies = 0;
@@ -335,6 +404,7 @@ public class HttpService implements KVService {
                                     }
 
                                     ReplicasAckCnt.set(MaxSameReplies);
+
                                     byte[] getResponseBytes = Base64.getDecoder().decode(MaxValueString);
 
                                     if (ReplicasAckCnt.get() >= QueryArguments.acks) {
@@ -376,6 +446,8 @@ public class HttpService implements KVService {
                                         ReplicasNAckCnt.getAndIncrement();
                                     }
 
+                                    //HttpClient clientPut = HttpClient.newBuilder().build();
+
                                     for (int i = 1; i < QueryArguments.replicas; i++) {
                                         //Get ports: always next n replica nodes from the original topology set
                                         URI NextURI = uriForward(InputURI,
@@ -397,18 +469,22 @@ public class HttpService implements KVService {
 
                                         clientPut.sendAsync(request, HttpResponse.BodyHandlers.ofString()).
                                                 //thenApply(HttpResponse::statusCode).
-                                                        orTimeout(1, TimeUnit.SECONDS).
+                                                        orTimeout(ClientEachTimeout, TimeUnit.MILLISECONDS).
                                                         whenComplete((response, error) -> {
                                                             if (error == null) {
                                                                 if (response.statusCode() == 201)
                                                                     ReplicasAckCnt.getAndIncrement();
-                                                                else {
+                                                                else
                                                                     ReplicasNAckCnt.getAndIncrement();
-                                                                }
-                                                            } else {
+                                                            } else
                                                                 ReplicasNAckCnt.getAndIncrement();
-                                                            }
                                                         });
+                                    }
+
+                                    if (InsertClientRequestDelay) {
+                                        long startTransmitTimeout = System.currentTimeMillis();
+                                        while ((System.currentTimeMillis() - startTransmitTimeout)
+                                                < ClientRequestDelay) ;
                                     }
 
                                     long startTimePut = System.currentTimeMillis();
@@ -419,7 +495,7 @@ public class HttpService implements KVService {
                                             &&
                                             ReplicasAckCnt.get() < QueryArguments.acks
                                             &&
-                                            (System.currentTimeMillis() - startTimePut) < 1000) ;//1sec
+                                            (System.currentTimeMillis() - startTimePut) < ClientAllTimeout) ;//10sec
 
                                     if (ReplicasAckCnt.get() >= QueryArguments.acks) {
                                         http_hl.sendResponseHeaders(201, 0);
@@ -436,6 +512,8 @@ public class HttpService implements KVService {
                                     }catch (IOException e){
                                         ReplicasNAckCnt.getAndIncrement();
                                     }
+
+                                    //HttpClient clientDelete = HttpClient.newBuilder().build();
 
                                     for (int i = 1; i < QueryArguments.replicas; i++) {
                                         //Get ports: always next n replica nodes from the original topology set
@@ -457,7 +535,7 @@ public class HttpService implements KVService {
 
                                         clientDelete.sendAsync(request, HttpResponse.BodyHandlers.ofString()).
                                                 thenApply(HttpResponse::statusCode).
-                                                orTimeout( 1, TimeUnit.SECONDS).
+                                                orTimeout(ClientEachTimeout, TimeUnit.MILLISECONDS).
                                                 whenComplete((statusCode, error) -> {
                                                     if (error == null) {
                                                         if (statusCode == 202)
@@ -469,6 +547,12 @@ public class HttpService implements KVService {
                                                 });
                                     }
 
+                                    if (InsertClientRequestDelay) {
+                                        long startTransmitTimeout = System.currentTimeMillis();
+                                        while ((System.currentTimeMillis() - startTransmitTimeout)
+                                                < ClientRequestDelay) ;
+                                    }
+
                                     long startTimeDelete = System.currentTimeMillis(); //fetch starting time
 
                                     /*Now wait until all pending requests are over*/
@@ -477,7 +561,7 @@ public class HttpService implements KVService {
                                             &&
                                             ReplicasAckCnt.get() < QueryArguments.acks
                                             &&
-                                            (System.currentTimeMillis()-startTimeDelete)<1000);//1sec
+                                            (System.currentTimeMillis()-startTimeDelete)<ClientAllTimeout);//10sec
 
                                     if (ReplicasAckCnt.get() >= QueryArguments.acks){
                                         http_hl.sendResponseHeaders(202, 0);
