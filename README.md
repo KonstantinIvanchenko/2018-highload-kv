@@ -1,1 +1,1 @@
-
+Implementation of the "Highload-2018 Mailru" HTTP + storage + cluster. Uses own implementation of the replication cluster configuration consiting of few storage nodes. Manages [ack/from] replicas with HTTP API requests.
